@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>PwdManager.chromium</title>
+    <base href="/" />
+    <link href="css/app.css" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="css/fa.css" rel="stylesheet" />
+    <link href="PwdManager.chromium.styles.css" rel="stylesheet" />
+    <link href="https://use.fontawesome.com/releases/v6.5.1/css/all.css" rel="stylesheet" />
+
+</head>
+
+<body style="width:500px; height:500px">
+    <div id="app">
+
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+    <script src="framework/blazor.webassembly.js"></script>
+    <script src="js/msal-browser.min.js"></script>
+
+    <script src="content/Microsoft.Authentication.WebAssembly.Msal/AuthenticationService.js"></script>
+    <script src="content/MudBlazor/MudBlazor.min.js"></script>
+
+    <script src="js/login.js"></script>
+    <script src="js/common.js"></script>
+    <script src="js/cryptoProcess.js"></script>
+    <script src="js/localStorage.js"></script>
+</body>
+
+</html>

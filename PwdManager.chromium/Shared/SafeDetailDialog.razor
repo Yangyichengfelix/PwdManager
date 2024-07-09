@@ -1,0 +1,158 @@
+﻿@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.Extensions.Configuration
+@using Microsoft.JSInterop
+@using PwdManager.Shared.Dtos.Coffres
+@using PwdManager.Shared.Dtos.Entrees
+@using PwdManager.chromium.Services
+@using System.Net.Http.Headers
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime _js
+@inject KeyService keyService
+@inject HttpClient _httpClient
+@inject IConfiguration _configuration
+<br />
+<div class="gap-1 justify-center d-flex flex-wrap overflow-y-scroll">
+    @if (response == null)
+    {
+        <p>loading ..</p>
+    }
+    else if (response.Entrees == null)
+    {
+        <p>loading ..</p>
+    }
+    @foreach (var entree in readmodeldata)
+    {
+        <div class="flex-auto vault-item password-item col-md-3 col-sm-2">
+            <div class="vault-item-thumbnail">
+                @if (string.IsNullOrEmpty(entree.Icon))
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Lock" Color="MudBlazor.Color.Dark"></MudIcon>
+                }
+                else
+                {
+                    <div class="d-inline mx-0 py-0 mud-theme-dark">
+                    <MudIconButton Class="my-0 " Icon="@(($"fab {entree.Icon}"))" Color="MudBlazor.Color.Info" />
+                    </div>
+                }
+            </div>
+            <div class="vault-item-info mx-0 py-0 " style="@(entree.visible?"display:none":"display:block")">
+                <p class="vault-item-summary">@entree.Url</p>
+
+            </div>
+            <div class="vault-item-info mx-0 py-0" style="@(entree.visible?"display:block":"display:none")">
+                <p class="vault-item-summary">@entree.Url</p>
+                <input type="text" @ref="selectComponentsText[entree.EncryptedLogin]" @bind-value="entree.Login" class="passwordSelect" id="@entree.EncryptedLogin" @onclick="(()=>SelectLogin(entree.EncryptedLogin))" />
+
+                <input type="text" @ref="selectComponentsText[entree.EncryptedPwd]" @bind-value="entree.Pwd" class="passwordSelect" id="@entree.EncryptedPwd" autofocus @onclick="(()=>SelectPwd(entree.EncryptedPwd))" />
+            </div>
+            <MudButton Color="MudBlazor.Color.Info" OnClick="(()=>{entree.visible=!entree.visible;})">@(entree.visible ? "Hide" : "Show")</MudButton>
+        </div>
+    }
+</div>
+@code {
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    public CoffreEntreeReadOnlyDto response { get; set; } = new CoffreEntreeReadOnlyDto();
+    protected List<KeyVaultObject> keyMaps =new();
+    protected EncryptResult urlResult { get; set; } = new();
+    protected EncryptResult loginResult { get; set; } = new();
+    protected EncryptResult pwdResult { get; set; } = new();
+    protected List<EntreeReadModel> readmodeldata { get; set; } = new();
+    protected EntreeReadModel originalData { get; set; } = new();
+    protected class EntreeCreateModel
+    {
+        public string Url { get; set; }
+        public string Login { get; set; }
+        public string Pwd { get; set; }
+        public string PwdConfirm { get; set; }
+    }
+    protected class EncryptResult
+    {
+        public string EncryptData { get; set; }
+        public string Tag { get; set; }
+        public string Iv { get; set; }
+    }
+    protected class EntreeReadModel
+    {
+        public string EncryptedLogin { get; set; }
+        public string EncryptedPwd { get; set; }
+        public string EncryptedUrl { get; set; }
+        public string Url { get; set; }
+        public string Login { get; set; }
+        public string Pwd { get; set; }
+        public string Icon { get; set; }
+        public bool visible { get; set; } = false;
+    }
+    private Dictionary<string, ElementReference> selectComponentsText = new Dictionary<string, ElementReference>();
+
+    private async Task SelectPwd(string id)
+    {
+        await _js.InvokeVoidAsync("copyText", id);
+        Snackbar.Add("Password copied to clipborad!", Severity.Normal);
+    }
+    private async Task SelectLogin(string id)
+    {
+        await _js.InvokeVoidAsync("copyText", id);
+        Snackbar.Add("Login copied to clipborad!", Severity.Info);
+    }
+    private string apiUrl = "";
+    public string accessToken = "";
+    protected override async Task OnParametersSetAsync()
+    {
+
+        
+        apiUrl = _configuration.GetValue<string>("PwdManager.srv");
+        try
+        {
+            accessToken =await LocalStorage.GetAsync<string>(_js, "accessToken");
+            if (accessToken==null)
+            {
+                accessToken = await _js.InvokeAsync<string>("SimulateAccessTokenResult");
+                await LocalStorage.SetAsync(_js, "accessToken", accessToken);
+            }
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", accessToken);
+            response = await _httpClient.GetFromJsonAsync<CoffreEntreeReadOnlyDto>($"{apiUrl}/api/coffre/{Id}");
+            Console.WriteLine(response);
+            foreach (var item in response.Entrees)
+            {
+                Console.WriteLine(item.Id +" "+ item.CoffreId+ " "+ item.IVPwd);
+            }
+            if (string.IsNullOrEmpty(keyService.keyVaults.Find(x => x.VaultId == Id).PrivateKey) || keyService.keyVaults.Find(x => x.VaultId == Id)==null)
+            {
+                do
+                {
+                    DialogParameters<DialogPwd> parameters = new DialogParameters<DialogPwd>();
+                    parameters.Add(x => x.Hash, response.PasswordHash);
+                    parameters.Add(x => x.Salt, response.Salt);
+                    parameters.Add(x => x.Id, Id);
+                    var dialog = await DialogService.ShowAsync<DialogPwd>("Entrez le mot de passe de coffre", parameters);
+                    var result = await dialog.Result;
+                }
+                while ((string.IsNullOrEmpty(keyService.keyVaults.Find(x => x.VaultId == Id).PrivateKey) || keyService.keyVaults.Find(x => x.VaultId == Id) == null));
+            }
+            var entree = response.Entrees.ToList();
+            var key = keyService.keyVaults.Find(w => w.VaultId == Id).PrivateKey;
+            if (entree.Count > 0)
+            {
+                var tasks = entree.Select(async f =>
+                {
+                    EntreeReadModel rm = new EntreeReadModel();
+                    rm = await _js.InvokeAsync<EntreeReadModel>("decryptInfo", key, response.Salt, f.EncryptedLogin, f.EncryptedPwd, f.EncryptedURL, f.IVLogin, f.IVPwd, f.IVUrl);
+                    rm.visible = false;
+                    rm.EncryptedLogin = f.EncryptedLogin;
+                    rm.EncryptedPwd = f.EncryptedPwd;
+                    rm.EncryptedUrl = f.EncryptedURL;
+                    rm.Icon = f.Icon;
+                    readmodeldata.Add(rm);
+                });
+                await Task.WhenAll(tasks);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Une erreur s'est produite lors de la récupération des coffres : {ex.Message}", Severity.Error);
+            Snackbar.Add($"Assurez vous que vous avez bien le droit de lecture du coffre : {ex.Message}", Severity.Warning);
+        }
+    }
+}

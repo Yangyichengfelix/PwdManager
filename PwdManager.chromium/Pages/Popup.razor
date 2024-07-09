@@ -1,0 +1,152 @@
+﻿@page "/popup.html"
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Microsoft.Extensions.Configuration
+@using PwdManager.Shared.Dtos.Coffres
+@using PwdManager.chromium.Services
+@using System.Threading
+@using System.Net.Http.Headers
+@using System.Text.Json
+@using System.IO
+@inherits BasePage
+@inject IJSRuntime _js
+
+<MudContainer>
+    <div class="gap-0  justify-center align-content-center d-flex flex-wrap py-1 my-1 overflow-y-scroll">
+
+    @if (coffres.Count < 1)
+    {
+        <p>loading..</p>
+
+    }
+    @foreach (var i in coffres)
+    {
+        <div class="flex-1 vault-item password-item col-md-3 col-sm-2">
+            <div class="vault-item-thumbnail">
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Color="MudBlazor.Color.Dark" ></MudIcon>
+            </div>
+            <div class="vault-item-info">
+                <p class="vault-item-name">@i.Title</p>
+                <p class="vault-item-summary">@i.Description</p>
+            </div>
+            <MudButton Color="MudBlazor.Color.Info" Variant="Variant.Text" OnClick="@(() => Open(i))">Open</MudButton>
+
+        </div>
+    }
+
+</div>
+
+</MudContainer>
+
+@code{
+
+
+    [Inject]
+    IDialogService DialogService { get; set; }
+    [Inject]
+    private ISnackbar Snackbar { get; set; }
+    [Inject]
+    private HttpClient _httpClient { get; set; }
+    [Inject]
+    private IAccessTokenProvider _AuthorizationService { get; set; }
+    [Inject]
+    private Microsoft.Extensions.Configuration.IConfiguration _configuration { get; set; }
+
+    public List<CoffreEntreeReadOnlyDto> coffres { get; set; } = new List<CoffreEntreeReadOnlyDto>();
+    private string apiUrl = "";
+    public string accessToken = "";
+
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+
+        await _js.InvokeVoidAsync("SimulateLoginResult");
+        await _js.InvokeVoidAsync("SimulateGraphResult");
+        accessToken = await _js.InvokeAsync<string>("SimulateAccessTokenResult");
+        await LocalStorage.SetAsync(_js, "accessToken", accessToken);
+
+        StateHasChanged();
+        try
+        {
+            CancellationTokenSource cts = new CancellationTokenSource();
+            _httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("bearer", accessToken);
+            apiUrl = _configuration.GetValue<string>("PwdManager.srv");
+            Console.WriteLine(apiUrl);
+            coffres = new List<CoffreEntreeReadOnlyDto>();
+            StateHasChanged();
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}/api/coffre/user");
+            request.SetBrowserResponseStreamingEnabled(true);
+            using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            using Stream responseStream = await response.Content.ReadAsStreamAsync();
+            await foreach (CoffreEntreeReadOnlyDto c in JsonSerializer.DeserializeAsyncEnumerable<CoffreEntreeReadOnlyDto>(
+                responseStream,
+                new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        DefaultBufferSize = 128
+                    }))
+            {
+                coffres.Add(c);
+
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Une erreur s'est produite lors de la récupération des coffres : {ex.Message}", Severity.Error);
+        }
+    }
+
+
+    async Task Open(CoffreEntreeReadOnlyDto item)
+    {
+        var parameters = new DialogParameters<DialogPwd>();
+        parameters.Add(x => x.Hash, item.PasswordHash);
+        parameters.Add(x => x.Salt, item.Salt);
+        parameters.Add(x => x.Id, item.Id);
+        
+        var options = new DialogOptions { 
+            CloseOnEscapeKey = true, 
+            DisableBackdropClick = true, 
+            NoHeader = true, 
+            FullWidth = true, 
+            Position = DialogPosition.BottomCenter };
+        var dialog = await DialogService.ShowAsync<DialogPwd>("Entrez le mot de passe de coffre", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var safeDetailDialogParam = new DialogParameters<SafeDetailDialog>();
+            safeDetailDialogParam.Add(x => x.Id, item.Id);
+       
+            var safeDetailDialogOptions = new DialogOptions
+                {
+                    DisableBackdropClick = true,
+                    NoHeader = true, 
+                    CloseOnEscapeKey = true,
+                    FullWidth = true,
+                    Position = DialogPosition.BottomCenter
+                };
+            var safeDetailDialogDialog = await DialogService.ShowAsync<SafeDetailDialog>("Details", safeDetailDialogParam, safeDetailDialogOptions);
+
+        }
+    }
+
+
+    private void Add()
+    {
+        try
+        {
+           // Navigation.NavigateTo($"/safe/create");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Une erreur s'est produite lors de la navigation vers la création du coffre : {ex.Message}", Severity.Error);
+        }
+    }
+
+}
