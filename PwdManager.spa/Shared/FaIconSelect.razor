@@ -1,0 +1,27 @@
+﻿@page "/icons"
+@inject HttpClient _client
+@inject IConfiguration _configuration
+@using System.Text.RegularExpressions
+@using System.Text
+
+
+<SearchBarItem PlaceHolderText="icon name" OnSearchChanged="InputChanged"></SearchBarItem>
+<MudSwitch @bind-Value="@FA5"> Style: @(FA5 ? "Solis" :"Brands")</MudSwitch>
+<br/>
+<div class="gap-0 d-flex flex-wrap overflow-y-scroll" style="max-height:35vh">
+@if (matches!=null&& icons.Count>0)
+{
+    
+    @foreach (var icon in ficons)
+    {
+        <div class="d-block flex-auto">
+            <div class="d-inline mx-1 py-2 pr-2  mud-theme-dark">
+                <MudIconButton Class="my-0 ml-1" Icon="@(FA5?($"fas {icon}"):($"fab {icon}"))" Color="MudBlazor.Color.Info" OnClick="()=>GetIconString(icon)" />
+                @icon.Substring(3)
+            </div>
+        </div>
+    }
+}
+</div>
+
+

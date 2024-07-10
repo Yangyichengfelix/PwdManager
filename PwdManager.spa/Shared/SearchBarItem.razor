@@ -1,0 +1,29 @@
+﻿﻿<section style="margin-bottom: 10px" class=" d-flex p-2">
+    <input type="text" class="form-control" placeholder="@PlaceHolderText"
+           @bind-value="@SearchTerm" @bind-value:event="oninput" @onkeydown="CheckKey" />
+</section>
+
+
+@code{
+
+    /// <summary>
+    /// chaine de caractère de recherche
+    /// </summary>
+    public string? SearchTerm { get; set; }
+    /// <summary>
+    /// Parametre: notification de chaine de caractère de recherche
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnSearchChanged { get; set; }
+    [Parameter]
+    public string? PlaceHolderText { get; set; }
+
+
+    public async Task CheckKey(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            await OnSearchChanged.InvokeAsync(SearchTerm);
+        }
+    }
+}

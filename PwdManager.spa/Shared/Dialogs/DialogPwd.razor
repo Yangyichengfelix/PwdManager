@@ -1,0 +1,124 @@
+﻿@using PwdManager.spa.Services
+@using System.Diagnostics.CodeAnalysis
+
+<div class="padlock">
+    <div class="padlock__hook">
+        <div class="padlock__hook-body"></div>
+        <div class="padlock__hook-body"></div>
+    </div>
+    <div class="padlock__body">
+        <div class="padlock__face">
+            <div class="padlock__eye padlock__eye--left"></div>
+            <div class="padlock__eye padlock__eye--right"></div>
+            <div class="padlock__mouth padlock__mouth--one"></div>
+            <div class="padlock__mouth padlock__mouth--two"></div>
+            <div class="padlock__mouth padlock__mouth--three"></div>
+        </div>
+    </div>
+</div>
+<MudDialog>
+
+    <DialogContent>
+
+            <label for="password">Password</label>
+            <input id="password" type="password" @bind-value="Password" placeholder="Enter your password" required="required" title="Wasn't your password &quot;password123&quot;? 🤫" />
+            <input id="login" type="checkbox" />
+            <label class="login-button" for="login" ><span>Enter</span></label>
+
+
+   
+        <MudFocusTrap DefaultFocus="DefaultFocus.FirstChild">
+            <MudTextField id="password" @bind-Value="Password" Label="Mot de passe"
+                           Required="true"
+                          RequiredError="mdp est obligatoire!"
+                          InputType="@PasswordInput"
+                          Variant="Variant.Outlined"                      
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@PasswordInputIcon"
+                          OnAdornmentClick="ChangePwdVisibility"
+                          AdornmentAriaLabel="Afficher Password" @onkeydown="EnterKey" />
+        </MudFocusTrap>
+        <MudCollapse Expanded="processing">
+            <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+        </MudCollapse>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="MudBlazor.Color.Primary" OnClick="VerifyPwd">Confirmer</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject, NotNull] ISnackbar? Snackbar { get; set; }
+    [Inject, NotNull] IJSRuntime? _js { get; set; }
+    [Inject, NotNull] KeyService? keyService { get; set; }
+    [Parameter] public string Salt { get; set; } = "";
+    [Parameter] public string Hash { get; set; } = "";
+    [Parameter] public string Password { get; set; } = "";
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = new();
+    private bool isPwdShow;
+    private bool processing=false;
+    private bool? correct { get; set; }
+    private InputType PasswordInput = InputType.Password;
+    private string PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+    void Submit() => MudDialog.Close(MudBlazor.DialogResult.Ok(true));
+
+    async Task VerifyPwd()
+    {
+
+        correct = await _js.InvokeAsync<bool>("compareHashedPassword", Password, Hash, Salt);
+
+        do
+        {
+            processing = true;
+            StateHasChanged();
+        } while (correct==null);
+
+
+
+        if ( correct == true)
+        {
+            processing = false;
+            StateHasChanged();
+            keyService.PrivateKey = await _js.InvokeAsync<string>("generateKey", Password, Salt);
+            Snackbar.Add("Password correct!", Severity.Success);
+            MudBlazor.DialogResult res = MudBlazor.DialogResult.Ok(true);
+            MudDialog.Close(res);
+        }
+        else if (correct==false)
+        {
+            Snackbar.Add("Password incorrect!", Severity.Error);
+            processing = false;
+            StateHasChanged();
+        }
+    }
+    public async Task EnterKey(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            if (string.IsNullOrEmpty(Password))
+            {
+                Snackbar.Add("Please enter your Password ", Severity.Warning);
+
+            }
+            else
+            {
+                await VerifyPwd();               
+            }
+        }
+    }
+    private void ChangePwdVisibility()
+    {
+        if (isPwdShow)
+        {
+            isPwdShow = false;
+            PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+            PasswordInput = InputType.Password;
+        }
+        else
+        {
+            isPwdShow = true;
+            PasswordInputIcon = Icons.Material.Filled.Visibility;
+            PasswordInput = InputType.Text;
+        }
+    }
+}

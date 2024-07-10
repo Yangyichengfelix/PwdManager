@@ -1,0 +1,110 @@
+﻿@using PwdManager.spa.Services
+@using System.Diagnostics.CodeAnalysis
+
+<MudDialog>
+
+    <DialogContent>
+
+
+
+
+        <MudFocusTrap DefaultFocus="DefaultFocus.FirstChild">
+            <MudTextField id="password" @bind-Value="Password" Label="Mot de passe"
+                          Required="true"
+                          RequiredError="mdp est obligatoire!"
+                          InputType="@PasswordInput"
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@PasswordInputIcon"
+                          OnAdornmentClick="ChangePwdVisibility"
+                          AdornmentAriaLabel="Afficher Password" @onkeydown="EnterKey" />
+        </MudFocusTrap>
+        <MudCollapse Expanded="processing">
+            <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+        </MudCollapse>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="MudBlazor.Color.Primary" OnClick="VerifyPwd">Remove pwd</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject, NotNull] ISnackbar? Snackbar { get; set; }
+    [Inject, NotNull] IJSRuntime? _js { get; set; }
+    [Inject, NotNull] KeyService? keyService { get; set; }
+    [Inject, NotNull] ICoffreService? _coffreService { get; set; }
+    [Parameter, NotNull] public string? Salt { get; set; }
+    [Parameter,  NotNull] public int Id { get; set; }
+    [Parameter,  NotNull] public string? Hash { get; set; }
+    [Parameter,  NotNull] public string? Password { get; set; }
+    [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
+    private bool isPwdShow;
+    private bool processing = false;
+    private bool? correct { get; set; }
+    private InputType PasswordInput = InputType.Password;
+    private string PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+
+
+    async Task VerifyPwd()
+    {
+        correct = await _js.InvokeAsync<bool>("compareHashedPassword", Password, Hash, Salt);
+        do
+        {
+            processing = true;
+            StateHasChanged();
+        } while (correct == null);
+        if (correct == true)
+        {
+            processing = false;
+            StateHasChanged();
+            keyService.PrivateKey = await _js.InvokeAsync<string>("generateKey", Password, Salt);
+            Snackbar.Add("Password correct!", Severity.Success);
+            var remove= await _coffreService.RemoveCoffre(Id);
+            if (remove.IsSuccessStatusCode){
+
+                MudBlazor.DialogResult res = MudBlazor.DialogResult.Ok(true);
+                MudDialog?.Close(res);
+            }
+            else{
+                Snackbar.Add("You may not have authorization to remove this vault.", Severity.Warning);
+                Snackbar.Add($"{remove.StatusCode}, {remove.Content}", Severity.Error);
+
+            }
+        }
+        else if (correct == false)
+        {
+            Snackbar.Add("Password incorrect!", Severity.Error);
+            processing = false;
+            StateHasChanged();
+        }
+    }
+    public async Task EnterKey(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            if (string.IsNullOrEmpty(Password))
+            {
+                Snackbar.Add("Please enter your Password ", Severity.Warning);
+            }
+            else
+            {
+                await VerifyPwd();
+            }
+        }
+    }
+    private void ChangePwdVisibility()
+    {
+        if (isPwdShow)
+        {
+            isPwdShow = false;
+            PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+            PasswordInput = InputType.Password;
+        }
+        else
+        {
+            isPwdShow = true;
+            PasswordInputIcon = Icons.Material.Filled.Visibility;
+            PasswordInput = InputType.Text;
+        }
+    }
+}

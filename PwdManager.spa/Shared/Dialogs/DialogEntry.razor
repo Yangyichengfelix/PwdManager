@@ -1,0 +1,163 @@
+﻿@using System.Diagnostics.CodeAnalysis
+@using PwdManager.Shared.Dtos
+@using PwdManager.Shared.Dtos.Entrees
+@using PwdManager.spa.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(($"fab {Entree.Icon}"))" Class="mr-3 mb-n1" />
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+            <MudGrid>
+                <MudItem xs="12" sm="12" md="12">
+                    <FaIconSelect OnIconClicked="IconSelected"></FaIconSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="6">
+                    <MudGrid>
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudTextField @bind-Value="Entree.Url" Label="Old url"
+                                      ReadOnly Disabled Margin="Margin.Dense"
+                                      Variant="Variant.Outlined"/>
+                        </MudItem>
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudTextField @bind-Value="Entree.Login" Label="Old login"
+                                      ReadOnly Disabled Margin="Margin.Dense"
+                                      Variant="Variant.Outlined"/>
+                        </MudItem>
+                        <MudItem xs="12" sm="12" md="12">
+                            <MudTextField @bind-Value="Entree.Pwd" Label="Old password"
+                                      ReadOnly Disabled Margin="Margin.Dense"
+                                      Variant="Variant.Outlined" />
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="6">
+                    <MudGrid>
+                        <MudItem xs="12" sm="12" md="12">
+                        <MudTextField @bind-Value="um.Url" Label="new url" Margin="Margin.Dense" Variant="Variant.Outlined"></MudTextField>
+                        </MudItem>
+                        <MudItem xs="12" sm="12" md="12">
+                        <MudTextField @bind-Value="um.Login" Label="new login" Margin="Margin.Dense" Variant="Variant.Outlined"></MudTextField>
+                        </MudItem>
+                        <MudItem xs="12" sm="12" md="12">
+                        <MudTextField @bind-Value="um.Pwd" Label="new password" Margin="Margin.Dense"
+
+                                          InputType="@PasswordInput"
+                                          Variant="Variant.Outlined"
+                                          Adornment="Adornment.End"
+                                          AdornmentIcon="@PasswordInputIcon"
+                                          OnAdornmentClick="ChangePwdVisibility"
+                                          AdornmentAriaLabel="Show Password" />
+                        </MudItem>
+                        <MudItem xs="12" sm="12" md="12">
+                        <MudTextField @bind-Value="um.PwdConfirm" Label="confirm password" Margin="Margin.Dense"
+                                      InputType="@ConfirmInput"
+                                      Variant="Variant.Outlined"
+                                      Adornment="Adornment.End"
+                                      AdornmentIcon="@ConfirmInputIcon"
+                                      OnAdornmentClick="ChangeConfirmVisibility"
+                                      AdornmentAriaLabel="Show Password Confirm" />
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+
+            </MudGrid>
+
+     
+        <MudCollapse Expanded="processing">
+            <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+        </MudCollapse>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="MudBlazor.Color.Error" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="MudBlazor.Color.Warning"
+                   Disabled="(string.IsNullOrWhiteSpace(um.Login)||string.IsNullOrWhiteSpace(um.Pwd)||string.IsNullOrWhiteSpace(um.Url)||string.IsNullOrWhiteSpace(VaultIcon))"
+                   OnClick="Update">Update entry/secret</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [Inject, NotNull] IEntreeService? _entreeService { get; set; }
+    [Inject, NotNull] private ICoffreService? _coffreService { get; set; }
+    [Inject, NotNull] private ISnackbar? Snackbar { get; set; }
+    [Inject, NotNull] private IJSRuntime? _js { get; set; }
+    [Inject, NotNull] private KeyService? keyService { get; set; }
+    [Parameter, NotNull] public EntreeReadModel? Entree { get; set; }
+    [Parameter, NotNull] public string? Salt { get; set; }
+    [Parameter, NotNull] public int CoffreId { get; set; }
+    [CascadingParameter] MudDialogInstance? MudDialog { get; set; } = new();
+    private EntreeDto entreeDto { get; set; } = new();
+    private EntreeUpdateModel um = new();
+    private bool processing = false;
+    private bool isPwdShow;
+    private bool isConfirmShow;
+    private InputType PasswordInput = InputType.Password;
+    private InputType ConfirmInput = InputType.Password;
+    private string VaultIcon = "";
+    private string PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+    private string ConfirmInputIcon = Icons.Material.Filled.VisibilityOff;
+
+    void Cancel() => MudDialog?.Close(MudBlazor.DialogResult.Ok(false));
+
+    protected void IconSelected(string iconString)
+    {
+        VaultIcon = iconString;
+        StateHasChanged();
+    }
+    protected override async Task OnParametersSetAsync()
+    {
+
+        um.Id = Entree.Id;
+        um.Login = Entree.Login;
+        um.Pwd = Entree.Pwd;
+
+        await base.OnParametersSetAsync();
+    }
+
+    private async Task Update()
+    {
+        entreeDto = await _js.InvokeAsync<EntreeDto>("encryptInfo", keyService.PrivateKey, Salt, um.Login, um.Pwd, um.Url);
+        entreeDto.Id = Entree.Id;
+        entreeDto.CoffreId = CoffreId;
+        entreeDto.Icon = VaultIcon;
+        var result = await _entreeService.UpdateEntree(entreeDto);
+        if (result.IsSuccessStatusCode)
+        {
+            MudDialog?.Close(MudBlazor.DialogResult.Ok(true));
+        }
+    }
+    
+    private void ChangePwdVisibility()
+    {
+        if (isPwdShow)
+        {
+            isPwdShow = false;
+            PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+            PasswordInput = InputType.Password;
+        }
+        else
+        {
+            isPwdShow = true;
+            PasswordInputIcon = Icons.Material.Filled.Visibility;
+            PasswordInput = InputType.Text;
+        }
+    }
+    private void ChangeConfirmVisibility()
+    {
+        if (isConfirmShow)
+        {
+            isConfirmShow = false;
+            ConfirmInputIcon = Icons.Material.Filled.VisibilityOff;
+            ConfirmInput = InputType.Password;
+        }
+        else
+        {
+            isConfirmShow = true;
+            ConfirmInputIcon = Icons.Material.Filled.Visibility;
+            ConfirmInput = InputType.Text;
+        }
+    }
+}
