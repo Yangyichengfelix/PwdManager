@@ -1,0 +1,49 @@
+﻿@using Grpc.Core
+@using Grpc.Net.Client
+
+<MudPaper Class="pa-4 mud-height-full">
+    <MudText Typo="Typo.subtitle2">@($"Entry/Secret Operations ({entryOperations.Length})")</MudText>
+    @foreach (var op in entryOperations)
+    {
+        <MudText Color="@MudBlazor.Color.Error">@op</MudText>
+    }
+</MudPaper>
+@code {
+
+    [Inject] GrpcChannel? Channel { get; set; }
+
+    private CancellationTokenSource? cts;
+
+    string[] entryOperations = { };
+    List<string> entryOps = new List<string>();
+    protected override async Task OnParametersSetAsync()
+    {
+        cts = new CancellationTokenSource();
+        var client = new Notification.Notificationer.NotificationerClient(Channel);
+        using var callEntry = client.GetEntryNotifications(new Google.Protobuf.WellKnownTypes.Empty(), cancellationToken: cts.Token);
+        try
+        {
+            await foreach (var message in callEntry.ResponseStream.ReadAllAsync())
+            {
+                System.Console.WriteLine(message.Data);
+
+                var text = $"{message.Data.AzureId} {message.Data.Operation} {message.Data.EntreeName} at {message.Data.Timeofaction}";
+                entryOps.Add(text);
+                entryOperations = entryOps.ToArray();
+                await InvokeAsync(StateHasChanged);
+                
+            }
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
+        {
+            // Ignore exception from cancellation
+        }
+
+    }
+
+    private void StopCount()
+    {
+        cts?.Cancel();
+        cts = null;
+    }
+}

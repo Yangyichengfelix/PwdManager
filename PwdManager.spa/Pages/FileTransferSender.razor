@@ -1,0 +1,426 @@
+﻿@page "/file-transfer/sender"
+@using Microsoft.Extensions.Configuration
+@using Microsoft.AspNetCore.SignalR.Client
+@using PwdManager.spa.Enums
+@using PwdManager.spa.HashCheckService
+@using PwdManager.spa.Models
+@using PwdManager.spa.Shared.Dialogs
+@using System.Text.Json
+@using System.Collections.Concurrent
+@using MudExtensions;
+
+@inject IJSRuntime JSRuntime
+@inject IConfiguration Configuration
+@inject IDialogService Dialog
+@inject HashServiceFactory HashServiceFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Transfer de clé</PageTitle>
+
+<DialogLoading IsVisible="@_isLoading" ContentText="@_loadingMessage"></DialogLoading>
+
+<MudPaper Width="100%" Elevation="0">
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudPaper Width="100%"
+                  Elevation="0"
+                  Square="true"
+                  Class="pa-5">
+
+            @if (_roomId == 0)
+            {
+                <div class="d-flex align-center">
+                    <MudProgressCircular Color="MudBlazor.Color.Primary"
+                                         Indeterminate="true"
+                                         Size="MudBlazor.Size.Small" />
+                    <MudText Typo="@Typo.caption" Class="ml-2">création de la salle est en cours....</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="d-flex mb-8">
+                    <MudChip Disabled="true" Label="true" Variant="Variant.Outlined" Color="MudBlazor.Color.Surface">
+                        Emetteur
+                    </MudChip>
+                    <MudChip Label="true" Variant="Variant.Outlined" Color="MudBlazor.Color.Success">
+                        @($"Numéro de salle {_roomId}")
+                    </MudChip>
+
+                    @switch (_connectionType)
+                    {
+                        case ConnectionTypeEnum.WebRTC:
+                            <MudChip Label="true" Variant="Variant.Outlined" Color="MudBlazor.Color.Success">
+                                Peer to peer
+                            </MudChip>
+                            break;
+                        case ConnectionTypeEnum.ServiceRelay:
+                            <MudChip Label="true" Variant="Variant.Outlined" Color="MudBlazor.Color.Warning">
+                                Transfert intermédiaire par le serveur
+                            </MudChip>
+                            break;
+                    }
+                </div>
+
+                if (_connectionType == ConnectionTypeEnum.None)
+                {
+                    if (!_isReceiverJoined)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">Scannez le code pour accéder directement</MudAlert>
+                        <MudBarcode @bind-Value="_qrValue"
+                                    Width="170"
+                                    Height="170"
+                                    BarcodeFormat="ZXing.BarcodeFormat.QR_CODE" />
+                        <div class="d-flex align-center">
+                            <MudProgressCircular Color="MudBlazor.Color.Primary"
+                                                 Indeterminate="true"
+                                                 Size="MudBlazor.Size.Small" />
+                            <MudText Typo="@Typo.caption" Class="ml-2">En attente de l'entrée du destinataire....</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-center">
+                            <MudProgressCircular Color="MudBlazor.Color.Primary"
+                                                 Indeterminate="true"
+                                                 Size="MudBlazor.Size.Small" />
+                            <MudText Typo="@Typo.caption" Class="ml-2">Connexion en cours....</MudText>
+                        </div>
+
+                        <div class="mt-5" style="font-size: 12px;opacity: 0.9;">
+                            Impossible de se connecter？Basculer sur le mode
+                            <MudElement HtmlTag="a"
+                                        Class="ma-0 cursor-pointer"
+                                        Style="color:var(--mud-palette-primary);font-weight:bold;opacity: 1;"
+                                        onclick="@EnableServiceRelay"
+                                        rel="noopener noreferrer">
+                                relai serveur
+                            </MudElement>
+                            Envoyer
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudFileUpload Class="mr-3"
+                                       T="IReadOnlyList<IBrowserFile>"
+                                       FilesChanged="UploadFiles">
+                            <ButtonTemplate>
+                                <MudButton HtmlTag="label"
+                                           Variant="MudBlazor.Variant.Text"
+                                           Color="MudBlazor.Color.Primary"
+                                           Size="MudBlazor.Size.Small"
+                                           StartIcon="@Icons.Material.Filled.FileUpload"
+                                           for="@context">
+                                    Ajouter fichier
+                                </MudButton>
+                            </ButtonTemplate>
+                        </MudFileUpload>
+                        @if (_files.Any())
+                        {
+                            <MudButton HtmlTag="label"
+                                       Variant="Variant.Text"
+                                       Color="MudBlazor.Color.Primary"
+                                       Size="MudBlazor.Size.Small"
+                                       OnClick="@(SendAllFilesAsync)">
+                                Tout envoyer
+                            </MudButton>
+                        }
+                    </div>
+
+                    foreach (var file in _files)
+                    {
+                        <MudPaper Class="px-3 py-2">
+                            <div class="d-flex align-center justify-space-between">
+                                <MudText Typo="Typo.overline" Class="mt-1">@file.FileName</MudText>
+                                    @switch (file.State)
+                                {
+                                    case FileTransferStateEnum.Init:
+                                        <MudLink Underline="@Underline.None"
+                                                 OnClick="@(() =>SendFileAsync(file.FileName))">Envoyer</MudLink>
+                                        break;
+                                    case FileTransferStateEnum.Queue:
+                                        <MudLink Disabled="true">En cours de file d'attente</MudLink>
+                                        break;
+                                    case FileTransferStateEnum.Sending:
+                                        <MudLink Disabled="true">En cours d'envoi</MudLink>
+                                        break;
+                                    case FileTransferStateEnum.Sent:
+                                        <MudLink Disabled="true">Terminé</MudLink>
+                                        break;
+                                }
+                            </div>
+                            <MudProgressLinear Striped="true"
+                                               Color="MudBlazor.Color.Info"
+                                               Size="MudBlazor.Size.Large"
+                                               Value="@file.Progress"
+                                               Class="mt-3">
+                                <MudText Typo="Typo.subtitle1" Color="MudBlazor.Color.Dark">
+                                    <b>@($"{Convert.ToInt32(file.Progress)}%")</b>
+                                </MudText>
+                            </MudProgressLinear>
+                        </MudPaper>
+                    }
+                }
+            }
+        </MudPaper>
+    </MudContainer>
+</MudPaper>
+
+@code
+{
+    private bool _isClosePage = false;
+    private int _roomId;
+    private bool _isLoading = false;
+    private string _loadingMessage = "";
+    private string _qrValue = "";
+
+    private bool _isReceiverJoined = false;
+    private ConnectionTypeEnum _connectionType = ConnectionTypeEnum.None;
+
+    private HubConnection _hub = null!;
+    private DotNetObjectReference<FileTransferSender> _objRef = null!;
+
+    private readonly List<FileTransferInfo> _files = new List<FileTransferInfo>();
+    private readonly SemaphoreSlim _fileQueueSlim = new(1, 1);
+    private readonly ConcurrentQueue<FileTransferInfo> _fileQueue = new ConcurrentQueue<FileTransferInfo>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnInitializedAsync();
+        System.Console.WriteLine($"Préparation à l'initialisation de la salle....");
+        _objRef = DotNetObjectReference.Create(this);
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl($"{Configuration["PwdManager.srv"]}/file-transfer-hub")
+            .Build();
+
+
+        _hub.On("ReceiverJoin", async () =>
+        {
+            System.Console.WriteLine("Entrée du destinataire");
+            _isReceiverJoined = true;
+            await InvokeAsync(StateHasChanged);
+            await JSRuntime.InvokeVoidAsync("createSenderConnection");
+        });
+
+        _hub.On<string>("ReceiveReceiverIceCandidate", async (candidate) =>
+        {
+            System.Console.WriteLine("Réception des informations sur le candidat de la partie destinataire");
+            await InvokeAsync(StateHasChanged);
+            await JSRuntime.InvokeVoidAsync("receiveIceCandidate", candidate);
+        });
+
+        _hub.On<string>("ReceiveAnswer", async (answer) =>
+        {
+            System.Console.WriteLine("Réception de l'instruction de réponse du canal réseau");
+            await JSRuntime.InvokeVoidAsync("receiveAnswer", answer);
+            await InvokeAsync(StateHasChanged);
+        });
+        await _hub.StartAsync();
+
+        await JSRuntime.InvokeVoidAsync("initialization", _objRef, Configuration["StunServer"]);
+
+        _roomId = await _hub.InvokeAsync<int>("CreateRoom");
+        _qrValue = $"{NavigationManager.BaseUri}file-transfer/receiver/{_roomId}";
+
+        System.Console.WriteLine("En attente de l'arrivée du destinataire....");
+        await Task.Factory.StartNew(StartSendFileQueueAsync, TaskCreationOptions.LongRunning);
+    }
+
+    [JSInvokable]
+    public async Task SendIceCandidateToServer(string candidate)
+    {
+        System.Console.WriteLine("Prêt à envoyer les informations du candidat....");
+        var result = await _hub.InvokeAsync<string>("SendSenderIceCandidate", candidate);
+        System.Console.WriteLine($"réponse du serveur:{result}");
+    }
+
+    [JSInvokable]
+    public async Task SendOfferToServer(string offer)
+    {
+        System.Console.WriteLine("Prêt à envoyer l'instruction de demande de canal réseau....");
+        var result = await _hub.InvokeAsync<string>("SendOffer", offer);
+        System.Console.WriteLine($"réponse du serveur:{result}");
+    }
+
+    [JSInvokable]
+    public async Task SenderConnected()
+    {
+        //发送端准备就绪
+        _connectionType = ConnectionTypeEnum.WebRTC;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async Task EnableServiceRelay()
+    {
+        _connectionType = ConnectionTypeEnum.ServiceRelay;
+        var result = await _hub.InvokeAsync<string>("SwitchConnectionType");
+        System.Console.WriteLine($"réponse du serveur:{result}");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void UploadFiles(IReadOnlyList<IBrowserFile> browserFiles)
+    {
+        long maxFileSize = 100000000;
+        IList<IBrowserFile> files = new List<IBrowserFile>();
+        foreach (var browserFile in browserFiles)
+        {
+            if (browserFile.Size >= maxFileSize)
+            {
+                var options = new DialogOptions()
+                    {
+                        NoHeader = true
+                    };
+                var parameters = new DialogParameters();
+                parameters.Add("ContentText", "La taille du fichier dépasse la limite du système");
+                Dialog.Show<DialogOk>("Avertissement", parameters, options);
+                return;
+            }
+
+            if (_files.Any(x => x.FileName == browserFile.Name))
+            {
+                var options = new DialogOptions()
+                    {
+                        NoHeader = true
+                    };
+                var parameters = new DialogParameters();
+                parameters.Add("ContentText", "Impossible d'ajouter le fichier de façon répétée");
+                Dialog.Show<DialogOk>("Avertissement", parameters, options);
+                return;
+            }
+
+            files.Add(browserFile);
+        }
+
+        await LoadingAsync("Traitement du fichier en cours...");
+
+        foreach (var browserFile in files)
+        {
+            var file = new FileTransferInfo();
+            file.FileName = browserFile.Name;
+            var ms = new MemoryStream();
+            await browserFile.OpenReadStream(maxFileSize).CopyToAsync(ms);
+            var buffer = ms.ToArray();
+            file.FileContext = new List<byte>(buffer);
+            file.FileSize = buffer.Length;
+            var hashService = HashServiceFactory.Create(HashTypeEnum.SHA1);
+            file.SHA1 = await hashService.ComputeHashAsync(buffer, false);
+
+            _files.Add(file);
+        }
+        await LoadingCompletedAsync();
+    }
+
+    private async Task SendFileAsync(string fileName)
+    {
+        var file = _files.First(x => x.FileName == fileName);
+        if (file.State != FileTransferStateEnum.Init)
+        {
+            return;
+        }
+        file.State = FileTransferStateEnum.Queue;
+        _fileQueue.Enqueue(file);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SendAllFilesAsync()
+    {
+        foreach (var file in _files)
+        {
+            if (file.State != FileTransferStateEnum.Init)
+            {
+                continue;
+            }
+            file.State = FileTransferStateEnum.Queue;
+            _fileQueue.Enqueue(file);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StartSendFileQueueAsync()
+    {
+        while (!_isClosePage)
+        {
+            while (_fileQueue.TryDequeue(out var file))
+            {
+                await _fileQueueSlim.WaitAsync();
+                _files.First(x => x.FileName == file.FileName).State = FileTransferStateEnum.Sending;
+                FileMetadata fileMetadata = file as FileMetadata;
+                if (_connectionType == ConnectionTypeEnum.WebRTC)
+                {
+                    await JSRuntime.InvokeVoidAsync("sendFileInfo", JsonSerializer.Serialize(fileMetadata));
+                    await JSRuntime.InvokeVoidAsync("sendFile", file.FileContext.ToArray());
+                }
+                else if (_connectionType == ConnectionTypeEnum.ServiceRelay)
+                {
+                    await _hub.InvokeAsync("SendFileInfo", JsonSerializer.Serialize(fileMetadata));
+                    await SendFileWithSignalRAsync();
+                }
+                await InvokeAsync(StateHasChanged);
+                await Task.Delay(100);
+            }
+            await Task.Delay(1000);
+        }
+    }
+
+    private int _chunkSize = 16384;
+    private async Task SendFileWithSignalRAsync()
+    {
+        var file = _files.First(x => x.State == FileTransferStateEnum.Sending);
+        int totalBytesSent = 0;
+
+        for (int offset = 0; offset < file.FileContext.Count; offset += _chunkSize)
+        {
+            int remainingBytes = file.FileContext.Count - offset;
+            int chunkToSend = Math.Min(_chunkSize, remainingBytes);
+            byte[] chunk = new byte[chunkToSend];
+            file.FileContext.CopyTo(offset, chunk, 0, chunkToSend);
+
+            await _hub.InvokeAsync("SendFile", chunk);
+
+            totalBytesSent += chunkToSend;
+            file.Progress = (double)totalBytesSent / file.FileContext.Count * 100; ;
+
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(20);
+        }
+        await _hub.InvokeAsync("SendFileSent");
+        file.State = FileTransferStateEnum.Sent;
+        _fileQueueSlim.Release();
+    }
+
+    [JSInvokable]
+    public async Task FileSending(int length)
+    {
+        var file = _files.First(x => x.State == FileTransferStateEnum.Sending);
+        file.Progress = (double)(file.FileSize - length) / file.FileSize * 100;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task FileSent()
+    {
+        _files.First(x => x.State == FileTransferStateEnum.Sending).State = FileTransferStateEnum.Sent;
+        _fileQueueSlim.Release();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadingAsync(string message)
+    {
+        _isLoading = true;
+        _loadingMessage = message;
+        await InvokeAsync(StateHasChanged);
+    }
+    private async Task LoadingCompletedAsync()
+    {
+        _isLoading = false;
+        _loadingMessage = "";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _isClosePage = true;
+        _objRef?.Dispose();
+    }
+}

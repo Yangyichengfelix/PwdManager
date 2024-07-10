@@ -1,0 +1,28 @@
+﻿@page "/logs"
+
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.JSInterop
+
+<h1>logs</h1>
+<br />
+<MudGrid>
+    <MudItem xs="12">
+        <MudDatePicker  @bind-Date="date" DateFormat="dd.MM.yyyy" />
+    </MudItem>
+    <MudItem xs="12">
+        <MudButton FullWidth Color=MudBlazor.Color.Info Variant=Variant.Filled Disabled="(date==null)" OnClick="GetLogs" >View logs of my vaults</MudButton>
+    </MudItem>
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Style="max-height:50vh; overflow-y:scroll">
+            @if (loading == true)
+            {
+                <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+            }
+            <MudText Typo="Typo.subtitle2">@($"Vault Operations ({vaultOperations.Length})")</MudText>
+            @foreach (var op in vaultOperations)
+            {
+                <MudText Color="@MudBlazor.Color.Error">@op</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>

@@ -1,0 +1,51 @@
+﻿@using BlazorTypewriter
+@inherits LayoutComponentBase
+
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+@inject IDialogService DialogService
+@inject IHttpClientFactory HttpClientFactory;
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Color="MudBlazor.Color.Dark" Elevation="1">
+        <MudIconButton Icon="@iconMenu" Color=" MudBlazor.Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudSpacer />
+        
+<h4><Typewriter Builder="@typewriter" /></h4>
+        <MudSpacer />
+        <LoginDisplay />
+    </MudAppBar >
+    <MudDrawer @bind-Open="@open" Elevation="1">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">PwdMan</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent Class="pt-16 px-16">
+        <MudContainer Class="mt-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+@code {
+    bool open = false;
+    string iconMenu = @Icons.Material.Filled.KeyboardArrowRight;
+
+    void ToggleDrawer()
+    {
+        open = !open;
+        
+    }
+    TypewriterBuilder typewriter = new TypewriterBuilder(defaultCharacterPause: 6)
+    .TypeString("This password manager allows you to create secure vaults.", 25)
+    .Pause(3000)
+    .DeleteAll(500)
+    .TypeString("It also allows you to retrieve your safe via a QR code and share your access.", 50)
+    .Pause(3000)
+    .DeleteAll(30)
+    .Loop();
+}

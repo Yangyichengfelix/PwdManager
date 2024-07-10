@@ -1,0 +1,181 @@
+﻿@page "/safe/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.JSInterop
+@using PwdManager.spa.Shared
+
+<MudForm @ref="UpdateForm" @bind-IsValid="@UpdateValid">
+    <MudGrid>
+
+        <MudItem xs="12" sm="12" md="12">
+            <MudTextField Margin="Margin.Dense"  @bind-Value="coffreUpdateModel.Title" Variant="Variant.Outlined" Label="Vault Title" Required="true"
+                          RequiredError="Vault Title" />
+        </MudItem>
+        <MudItem xs="12" sm="12" md="12">
+            <MudTextField Margin="Margin.Dense" @bind-Value="coffreUpdateModel.Description" Variant="Variant.Outlined" Label="Vault description" Required="true"
+                          RequiredError="Vault description" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="6">
+            <MudTextField Margin="Margin.Dense"  @bind-Value="coffreUpdateModel.Pwd" 
+            Label="Vault Password" 
+               Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
+                             
+                                  InputType="@UpdatePasswordInput"
+                                  Variant="Variant.Outlined"
+                                  HelperText="password here"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@UpdatePasswordInputIcon"
+                                  OnAdornmentClick="ChangeUpdatePwdVisibility"
+                          RequiredError="new Vault password" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="6">
+            <MudTextField Margin="Margin.Dense" @bind-Value="coffreUpdateModel.PwdConfirm" 
+                            Variant="Variant.Outlined" Label="Vault Password confirm" Required="true"
+                          InputType=@UpdateConfirmInput
+                          Validation="@(new Func<string, string?>(UpdatePasswordMatch))"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@UpdatePasswordConfirmInputIcon"
+                          OnAdornmentClick="ChangeUpdateConfirmVisibility"
+                          RequiredError="new Vault password confirm" />
+        </MudItem>
+        <MudItem xs="12" sm="12" md="12">
+            <MudButton FullWidth Color="MudBlazor.Color.Warning" Variant="Variant.Filled" Disabled="@(!UpdateValid)" OnClick="@(() => UpdateVault())">Update Vault</MudButton>
+
+        </MudItem>
+    </MudGrid>
+</MudForm>
+
+<MudGrid>
+    <MudItem xs="6" sm="6" md="6">
+        <MudButton FullWidth Color="MudBlazor.Color.Info" Variant="Variant.Filled" OnClick="@(() => Add())">New +</MudButton>
+    </MudItem>
+    <MudItem xs="6" sm="6" md="6">
+        <MudButton FullWidth Color="MudBlazor.Color.Secondary" Variant="Variant.Filled" OnClick="@(() => Delete())">Delete this vault</MudButton>
+    </MudItem>
+</MudGrid>
+<MudContainer>
+    <div class="gap-0  justify-center align-content-center d-flex flex-wrap py-1 my-1 overflow-y-scroll">
+
+    @if (loading == true)
+    {
+            <MudOverlay @bind-Visible=loading DarkBackground="true" ZIndex="9999" >
+
+        <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+            </MudOverlay>
+    }
+    else if (response.Entrees == null)
+    {
+            <MudOverlay @bind-Visible=loading DarkBackground="true" ZIndex="9999" />
+        <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+    }
+    @foreach (var entree in readmodeldata)
+    {
+
+
+            <div class="flex-auto vault-item password-item col-md-3">
+                <div class="vault-item-thumbnail flex-none">
+                    @if (string.IsNullOrEmpty(entree.Icon))
+                    {
+                        <div class="d-inline">
+                            <MudIconButton OnClick="()=>OpenUpdateDialog(entree)" Class="my-0 " Icon="@Icons.Material.Filled.Lock" Color="MudBlazor.Color.Info" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-inline">
+                            <MudIconButton OnClick="()=>OpenUpdateDialog(entree)" Class="my-0 " Icon="@(($"fab {entree.Icon}"))" Color="MudBlazor.Color.Info" />
+                        </div>
+                    }
+                    <MudButton Color="MudBlazor.Color.Info" OnClick="(()=>{entree.visible=!entree.visible;})">@(entree.visible ? "Hide" : "Show")</MudButton>
+                    <MudIconButton Color="MudBlazor.Color.Error" Icon="@Icons.Material.Filled.Delete" OnClick="()=>(DeleteEntry(entree.Id))"></MudIconButton>
+                </div>
+              
+              
+                <div class="vault-item-info mx-0 py-0" style="@(entree.visible?"display:none":"display:block")">
+                    <p class="vault-item-name">@entree.Url</p>
+                </div>
+                <div class="vault-item-info" style="@(entree.visible?"display:block":"display:none")">
+                    <p class="vault-item-summary">@entree.Url</p>
+                    <p class="vault-item-summary">LOGIN: @entree.Login</p>
+                    <input type="text" @ref="selectComponentsText[entree.Pwd]" @bind-value="entree.Pwd" class="entreeinput" id="@entree.EncryptedPwd" @onclick="(()=>SelectText(entree.EncryptedPwd))" />
+                </div>
+
+
+            </div>
+    }
+
+
+</div>
+
+<MudGrid>
+
+
+
+    <MudCollapse Expanded="_expanded">
+    <MudItem xs="12">
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="6">
+                        <MudTextField Margin="Margin.Dense" @bind-Value="entreeCreateModel.Url" Variant="Variant.Outlined" Label="Url" Required="true"
+                                  RequiredError="L'url est obligatoire" />
+                </MudItem>
+                <MudItem xs="6" sm="3" md="3">
+           
+                    <MudText Typo="Typo.body1"> Icon: </MudText>
+                </MudItem>
+                <MudItem xs="6" sm="3" md="3">
+
+                    @if (!string.IsNullOrEmpty(VaultIcon))
+                    {
+                       
+                            <MudIconButton Class="my-0 " Icon="@(($"fab {VaultIcon}"))" Color="MudBlazor.Color.Info" />
+                    }
+                           
+                </MudItem>
+                <MudItem xs="12" sm="12" md="12">
+                    <FaIconSelect OnIconClicked="IconSelected"></FaIconSelect>
+                </MudItem>
+                <MudItem xs="12" sm="12" md="12">
+                        <MudTextField Margin="Margin.Dense" @bind-Value="entreeCreateModel.Login" Variant="Variant.Outlined" Label="Login" Required="true"
+                                  RequiredError="La login est obligatoire" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="6">
+                        <MudTextField Margin="Margin.Dense" @bind-Value="entreeCreateModel.Pwd" Label="Mot de passe"
+                                  Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
+                                  RequiredError="mdp est obligatoire!"
+                                  InputType="@PasswordInput"
+                                  Variant="Variant.Outlined"
+                                  HelperText="password here"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@PasswordInputIcon"
+                                  OnAdornmentClick="ChangePwdVisibility"
+                                  AdornmentAriaLabel="Afficher Password" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="6">
+                        <MudTextField Margin="Margin.Dense" @bind-Value="entreeCreateModel.PwdConfirm"
+                                  Variant="Variant.Outlined"
+                                  Label="Confirmation mot de passe" Required="true" HelperText="Répéter le mot de passe"
+                                  InputType=@ConfirmInput
+                                  Validation="@(new Func<string, string?>(PasswordMatch))"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@PasswordConfirmInputIcon"
+                                  OnAdornmentClick="ChangeConfirmVisibility"
+                                  AdornmentAriaLabel="Afficher" />
+                </MudItem>
+                <MudItem xs="12" sm="12" md="12">
+                    <MudButton FullWidth Color="MudBlazor.Color.Secondary" Variant="Variant.Outlined"
+                                   Disabled="(string.IsNullOrWhiteSpace(entreeCreateModel.Login)||string.IsNullOrWhiteSpace(entreeCreateModel.Pwd)||string.IsNullOrWhiteSpace(entreeCreateModel.Url))"
+                                   OnClick="@(() => Create())">Créer</MudButton>
+
+                </MudItem>
+
+            </MudGrid>
+
+
+    </MudItem>
+    </MudCollapse>
+
+
+</MudGrid>
+
+</MudContainer>

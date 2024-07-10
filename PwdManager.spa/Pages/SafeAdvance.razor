@@ -1,0 +1,140 @@
+﻿@page "/safeadvance"
+@* @attribute [Authorize] *@
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@using MudBlazor.Components
+@using PwdManager.spa.Utilities
+<MudGrid>
+    <MudItem xs="12" sm="12">
+=
+        <MudPaper Class="pa-4">
+            <MudForm @ref="form" @bind-IsValid="@success" >
+
+
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="6">
+                        <MudTextField @bind-Value="entreeCreate.Password" Label="Mot de passe"
+                                      Validation="@(new Func<string, IEnumerable<string>>(PasswordChecks.PasswordStrength))" Required="true"
+                                      RequiredError="mdp est obligatoire!"
+                                      InputType="@PasswordInput"
+                                      Variant="Variant.Outlined"
+                                      HelperText=@PasswordSample
+                                      Adornment="Adornment.End"
+                                      AdornmentIcon="@PasswordInputIcon"
+                                      OnAdornmentClick="ChangePwdVisibility"
+                                      AdornmentAriaLabel="Afficher Password" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="6">
+                        <MudTextField @bind-Value="entreeCreate.PasswordConfirm"
+                                      Variant="Variant.Outlined"
+                                      Label="Confirmation mot de passe" Required="true" HelperText="Veuillez répéter le mdp"
+                                      InputType=@ConfirmInput
+                                      Validation="@(new Func<string, string?>(PasswordMatch))"
+                                      Adornment="Adornment.End"
+                                      AdornmentIcon="@PasswordConfirmInputIcon"
+                                      OnAdornmentClick="ChangeConfirmVisibility"
+                                      AdornmentAriaLabel="Show Confirm" />
+                    </MudItem>
+                </MudGrid>
+                <div class="d-flex align-center justify-space-between">
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Replay" Color="MudBlazor.Color.Primary" OnClick="@(()=>form.ResetAsync())"></MudIconButton>
+                    <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" Disabled="@(!success)" OnClick="()=>GeneratePrivateKey()">Générer clé</MudButton>
+                </div>
+            </MudForm>
+            <MudForm>
+                <MudTextField @ref="keyGenReference" T="string" Label="Clé générée" Variant="Variant.Outlined" Text="@ko.privateKey" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Api" OnAdornmentClick="@(() => keyGenReference.SelectAsync())" />
+                <MudTextField @ref="saltGenReference" T="string" Label="Sel généré" Variant="Variant.Outlined" Text="@ko.salt" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Api" OnAdornmentClick="@(() => saltGenReference.SelectAsync())" />
+            </MudForm>
+
+
+            <MudForm>
+                <MudTextField Label="login To Encrypt" Variant="Variant.Outlined" @bind-Value="@LoginToEncrypt" />
+                <p>@LoginToEncrypt</p>
+                <MudTextField Label="pwd To Encrypt" Variant="Variant.Outlined" @bind-Value="@PwdToEncrypt" />
+                <p>@PwdToEncrypt</p>
+                <div class="d-flex align-center justify-space-between">
+                    <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" OnClick="()=>EncryptLoginPwd()">Encrypt</MudButton>
+                </div>
+                <MudTextField Label="Cipher login" Variant="Variant.Outlined" @bind-Value="@em.Cipherlogin" />
+                <MudTextField Label="Cipher Pwd" Variant="Variant.Outlined" @bind-Value="@em.Cipherpassword" />
+                <MudTextField Label="Cipher Url" Variant="Variant.Outlined" @bind-Value="@em.CipherUrl" />
+                <MudTextField Label="Tag login" Variant="Variant.Outlined" @bind-Value="@em.loginTag" />
+                <MudTextField Label="Tag Pwd" Variant="Variant.Outlined" @bind-Value="@em.passwordTag" />
+                <MudTextField Label="Tag url" Variant="Variant.Outlined" @bind-Value="@em.urlTag" />
+
+                <MudTextField Label="iv login" Variant="Variant.Outlined" @bind-Value="@em.ivLogin" />
+                <MudTextField Label="iv password" Variant="Variant.Outlined" @bind-Value="@em.ivPassword" />
+                <MudTextField Label="iv url" Variant="Variant.Outlined" @bind-Value="@em.ivUrl" />
+
+                <div class="d-flex align-center justify-space-between">
+
+                    <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" Disabled="@(!success)" OnClick="()=>DecryptInfo()">Decrypt</MudButton>
+                </div>
+                <MudTextField @bind-Value="@DecryptedData" Label="DecryptedData" Variant="Variant.Outlined" />
+
+
+            </MudForm>
+
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+
+@code {
+    private string Login { get; set; } = "";
+    private string Password { get; set; } = "";
+
+    private string LoginToEncrypt { get; set; } = "";
+    private string PwdToEncrypt { get; set; } = "";
+    private string InputToEncrypt { get; set; } = "";
+    private string iv { get; set; } = "";
+
+    private string DecryptedData { get; set; } = "";
+    private string EncryptedData { get; set; } = "";
+
+    private byte[] key=[];
+
+
+    private KeyObj ko { get; set; } = new();
+    private EntreeModel em { get; set; } = new();
+    private ClairTextModel ctm { get; set; } = new();
+
+    private MudTextField<string> keyGenReference { get; set; } = new();
+    private MudTextField<string> saltGenReference { get; set; } = new();
+
+    private class EntreeModel
+    {
+        public string loginTag { get; set; } = "";
+        public string passwordTag { get; set; } = "";
+        public string urlTag { get; set; } = "";
+        public string Cipherlogin { get; set; } = "";
+        public string Cipherpassword { get; set; } = "";
+        public string CipherUrl { get; set; } = "";
+        public string ivLogin { get; set; } = "";
+        public string ivPassword { get; set; } = "";
+        public string ivUrl { get; set; } = "";
+    }
+    private class KeyObj
+    {
+        public byte[] keyBits { get; set; } = [];
+        public string privateKey { get; set; } = "";
+        public byte[] saltBits { get; set; } = [];
+        public string salt { get; set; } = "";
+    }        
+
+    private class ClairTextModel
+    {
+        public string Url { get; set; } = "";
+        public string Login { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+
+
+
+    @inject IJSRuntime JSRuntime
+
+}

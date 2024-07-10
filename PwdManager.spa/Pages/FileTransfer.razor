@@ -1,0 +1,64 @@
+﻿@page "/file-transfer"
+
+@inject NavigationManager NavigationManager
+
+<PageTitle>Transfer de clé</PageTitle>
+
+<MudPaper Width="100%" Elevation="0">
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudPaper Width="100%"
+                  Square="true"
+                  Elevation="0"
+                  Class="pa-5 mt-10">
+            <MudText Style="text-align: center;">Transfer de clé</MudText>
+
+            <MudCard Class="mt-10">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">Prêt à envoyer un fichier？</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text"
+                               Color="MudBlazor.Color.Info"
+                               OnClick="@(async () => await GotoSenderPageAsync())">Créer une salle</MudButton>
+                </MudCardActions>
+            </MudCard>
+
+            <MudCard Class="mt-5">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">En attente de réception du fichier？</MudText>
+                </MudCardContent>
+                <MudCardActions>
+
+                    <MudTextField T="string"
+                                  Label="Numéro de salle pour la connexion"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.JoinInner"
+                                  AdornmentColor="MudBlazor.Color.Info"
+                                  Immediate="true"
+                                  MaxLength="4"
+                                  ValueChanged="@(InputRoomIdChanged)" />
+                </MudCardActions>
+            </MudCard>
+        </MudPaper>
+    </MudContainer>
+</MudPaper>
+@code
+{
+    private Task GotoSenderPageAsync()
+    {
+        NavigationManager.NavigateTo($"/file-transfer/sender");
+        return Task.CompletedTask;
+    }
+
+    private Task InputRoomIdChanged(string value)
+    {
+        value = value.Trim();
+        int roomId;
+        if (value.Length == 4 && int.TryParse(value, out roomId))
+        {
+            NavigationManager.NavigateTo($"/file-transfer/receiver/{roomId}");
+        }
+        return Task.CompletedTask;
+    }
+}

@@ -1,0 +1,64 @@
+﻿@page "/entree/safe/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.JSInterop
+@using PwdManager.spa.Shared
+<MudGrid>
+    <MudItem xs="12" sm="12">
+        <MudStack Spacing="2">
+            
+                <MudPaper Class="pa-4">
+                    <MudForm>
+                        <MudTextField Label="login To Encrypt" Variant="Variant.Outlined" @bind-Value="@LoginToEncrypt" />
+                        <p>@LoginToEncrypt</p>
+                        <MudTextField Label="Password To Encrypt" Variant="Variant.Outlined" @bind-Value="@PwdToEncrypt" />
+                        <p>@PwdToEncrypt</p>
+                        <MudTextField Label="Url To Encrypt" Variant="Variant.Outlined" @bind-Value="@UrlToEncrypt" />
+                        <p>@UrlToEncrypt</p>
+                        <div class="d-flex align-center justify-space-between">
+                            <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" OnClick="()=>EncryptLoginPwd()">Encrypt</MudButton>
+                        </div>
+                    <MudTextField Label="Cipher login" Variant="Variant.Outlined" @bind-Value="@entreeCreate.EncryptedLogin" />
+                    <MudTextField Label="Cipher Pwd" Variant="Variant.Outlined" @bind-Value="@entreeCreate.EncryptedPwd" />
+                    <MudTextField Label="Cipher Url" Variant="Variant.Outlined" @bind-Value="@entreeCreate.EncryptedURL" />
+                    <MudTextField Label="Tag login" Variant="Variant.Outlined" @bind-Value="@entreeCreate.TagLogin" />
+                    <MudTextField Label="Tag Pwd" Variant="Variant.Outlined" @bind-Value="@entreeCreate.TagPwd" />
+                    <MudTextField Label="Tag url" Variant="Variant.Outlined" @bind-Value="@entreeCreate.TagUrl" />
+                    <MudTextField Label="iv login" Variant="Variant.Outlined" @bind-Value="@entreeCreate.IVLogin" />
+                    <MudTextField Label="iv password" Variant="Variant.Outlined" @bind-Value="@entreeCreate.IVPwd" />
+                    <MudTextField Label="iv url" Variant="Variant.Outlined" @bind-Value="@entreeCreate.IVUrl" />
+                    <FaIconSelect OnIconClicked="IconSelect"/>
+                    <MudIcon Icon="@((!string.IsNullOrEmpty(IconString))?($"fab {IconString}"):($""))" />
+                    <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Info" Disabled="@(String.IsNullOrEmpty( entreeCreate.EncryptedPwd))" OnClick="()=>ValidateEntree()">Send</MudButton>
+
+                    
+                    </MudForm>
+                </MudPaper>
+        </MudStack>
+
+    </MudItem>
+</MudGrid>
+
+
+@code {
+    private string Login { get; set; } = "";
+    private string Password { get; set; } = "";
+
+    private string LoginToEncrypt { get; set; } = "";
+    private string PwdToEncrypt { get; set; } = "";
+    private string UrlToEncrypt { get; set; } = "";
+    private string InputToEncrypt { get; set; } = "";
+    private string iv { get; set; } = "";
+
+    private string DecryptedData { get; set; } = "";
+    private string EncryptedData { get; set; } = "";
+
+    private byte[] key=[];
+
+
+
+
+
+
+    @inject IJSRuntime JSRuntime
+
+}

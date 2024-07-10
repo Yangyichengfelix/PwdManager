@@ -1,0 +1,37 @@
+﻿@page "/safe/list"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.JSInterop
+
+<h2>All my vaults</h2>
+<br/>
+
+<div class="gap-1 justify-center align-content-center d-flex flex-wrap py-1 my-1 overflow-y-scroll">
+
+<MudButton Class="gap-1 flex-1" Style="font-size:1.1rem;font-weight:400;color:#465e7b;" Color="MudBlazor.Color.Surface" FullWidth Variant="Variant.Filled" OnClick="@(() => ManageAccess())">Manange access</MudButton>
+<MudButton Variant="Variant.Filled" Class="gap-1 flex-1 orange lighten-1 " Style="font-size:1.1rem;font-weight:400;color:#465e7b;" FullWidth OnClick="Add">New Vault</MudButton>
+</div>
+
+<div class="gap-1 justify-center align-content-center d-flex flex-wrap py-1 my-1 overflow-y-scroll">
+    @if (loading)
+    {
+        <div class="col-6 col-sm-4 col-md-3 col-lg-auto"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge"></Spinner></div>
+
+    }
+
+    @foreach (var i in coffres)
+    {
+        <div class="flex-1 vault-item password-item ">
+            <div class="vault-item-thumbnail orange lighten-1 ">
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Color="MudBlazor.Color.Dark" ></MudIcon>
+            </div>
+            <div class="vault-item-info ">
+                <p class="vault-item-name">@i.Title</p>
+                <p class="vault-item-summary">@i.Description</p>
+            </div>
+            <MudButton Color="MudBlazor.Color.Info" Class="orange lighten-1 " Variant="Variant.Filled" OnClick="@(() => Open(i))">Open</MudButton>
+
+        </div>
+    }
+
+</div>
+

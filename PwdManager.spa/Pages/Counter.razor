@@ -1,0 +1,17 @@
+﻿@page "/counter"
+
+
+<h1>Counter</h1>
+
+<p>Current count: @currentCount</p>
+
+<button class="btn btn-primary" @onclick="IncrementCount" disabled="@(cts != null)">Start</button>
+<button class="btn btn-primary" @onclick="StopCount" disabled="@(cts == null)">Stop</button>
+
+<div>
+  
+    <p>
+        Incrementing count streamed from a gRPC service.
+    </p>
+</div>
+

@@ -1,0 +1,142 @@
+﻿@page "/safe/manageaccess"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using PwdManager.Shared
+@using PwdManager.Shared.Data
+@using PwdManager.Shared.Dtos.Coffres
+@using PwdManager.spa.Shared
+
+<style>
+    .selectedVault {
+        background-color: #3E68E5 !important;
+    }
+
+    .selectedUser {
+        background-color: #1E88E5 !important;
+    }
+
+    .selectedUser > td {
+        color: white !important;
+    }
+
+    .selectedVault > td {
+        color: white !important;
+    }
+
+    .selected > td .mud-input {
+        color: white !important;
+    }
+    .user {
+        color: orange;
+        background-color: black;
+    }
+
+    .TableSelect {
+        height:40vh;
+    }
+</style>
+
+<MudGrid Class="TableSelect overflow-y-scroll ">
+    <MudItem xs="12" md="12" lg="12" xl="12">
+        <SearchBarItem PlaceHolderText="Type a username to view vaults" OnSearchChanged="InputChanged"></SearchBarItem>
+    </MudItem>
+
+<MudCollapse Expanded="@_expended">
+
+
+    <MudItem xs="12" md="12" lg="12" xl="12">
+        <MudGrid>
+            <MudItem xs="12" md="2" lg="2" xl="2">
+                <MudToggleGroup Vertical @bind-Value="@azureCoffreAccessDto.Access" Color="MudBlazor.Color.Warning"  Outline="true" Delimiters="true" Dense="true" Rounded="false" CheckMark="true" FixedContent="true">
+                    <MudToggleItem Value="@(Access.R)" />
+                    <MudToggleItem Value="@(Access.RW)" />
+                    <MudToggleItem Style="background-color:orange; color:aliceblue" Value="@(Access.Admin)" />
+                </MudToggleGroup>
+            </MudItem>
+            <MudItem xs="5" md="5" lg="5" xl="5">
+                <MudTextField HelperText="User"  Disabled ReadOnly Variant="Variant.Outlined" @bind-Value="azureCoffreAccessDto.AzureId"
+                              Style="@(string.IsNullOrEmpty(azureCoffreAccessDto.AzureId)?"background-color:inherit":"background-color:orange")" />
+
+            </MudItem>
+            <MudItem xs="5" md="5" lg="5" xl="5">
+                <MudTextField HelperText="Vault" Disabled ReadOnly Variant="Variant.Outlined" @bind-Value="SelectedCoffre.Title"
+                              Style="@(string.IsNullOrEmpty(SelectedCoffre.Title)?"background-color:inherit":"background-color:orange")" />
+            </MudItem>
+        </MudGrid>
+    </MudItem>
+
+
+    <MudItem xs="12" md="12" lg="12" xl="12">
+        <MudButton ButtonType="MudBlazor.ButtonType.Button" FullWidth Variant="Variant.Filled" Class="gap-1 flex-1 orange lighten-1 " Style="font-size:1.1rem;font-weight:450;color:#465e7b;" OnClick="Grant">Grant access</MudButton>
+    </MudItem>
+    </MudCollapse>
+
+</MudGrid>
+
+
+
+@if (users.Count < 1)
+{
+    <div class="gap-1 justify-center align-content-center d-flex flex-wrap py-1 my-1"><Spinner Size="BootstrapBlazor.Components.Size.ExtraExtraLarge" Color="BootstrapBlazor.Components.Color.Light"></Spinner>loading..</div>
+}
+else
+{
+<MudCollapse Expanded="@_expended">
+
+    <MudGrid>
+        <MudItem xs="12" md="6" lg="6" xl="6">
+
+
+            <MudTable Items="@users" Dense="true" Hover="true" Bordered="true" Striped="true" Breakpoint="Breakpoint.Sm" @ref="userTable" Class="TableSelect  overflow-y-scroll"
+                    
+                      OnRowClick="RowClickEvent" T="ApiUser">
+
+                <HeaderContent>
+                    <MudTh>User</MudTh>
+                    <MudTh>[User].Vault.[Access]</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="User">@context.AzureId</MudTd>
+                    <MudTd DataLabel="Vaults" Class="gap-0 d-flex flex-wrap overflow-y-scroll">
+
+                        @for (int i = 0; i < context.ApiUserCoffres.Count(); i++)
+                        {
+                            <p>
+                                <span class="user">[@context.AzureId]</span>
+                                @($".{(context.ApiUserCoffres)[i].Coffre?.Title}.")
+                                <span class="user">[@((context.ApiUserCoffres[i].Access))]</span>
+                            </p>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+
+
+        </MudItem>
+        <MudItem xs="12" md="6" lg="6" xl="6">
+
+            <MudTable Items="@coffres" Dense="true" Hover="true" Bordered="true" Striped="true" Breakpoint="Breakpoint.Sm" @ref="coffreTable" Class="TableSelect  overflow-y-scroll"
+      
+                      OnRowClick="VaultRowClickEvent" T="CoffreEntreeReadOnlyDto">
+                <HeaderContent>
+                    <MudTh>Vault</MudTh>       
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Vaults" Class="gap-0 d-flex flex-wrap overflow-y-scroll">
+                        @context.Title
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </MudItem>
+    </MudGrid>
+</MudCollapse>
+
+}
+
